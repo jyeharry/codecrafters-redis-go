@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"os"
 )
@@ -12,9 +13,38 @@ func main() {
 		fmt.Println("Failed to bind to port 6379")
 		os.Exit(1)
 	}
-	_, err = l.Accept()
+	fmt.Printf("Listening on %v", l.Addr())
+
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			continue
+		}
+
+		handleClient(conn)
+	}
+}
+
+func handleClient(conn net.Conn) {
+	defer conn.Close()
+
+	buf := make([]byte, 1024)
+	n, err := conn.Read(buf)
 	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
+		fmt.Println("Error reading from connection: ", err.Error())
 		os.Exit(1)
 	}
+
+	log.Printf("Received %d bytes", n)
+	log.Printf("Received the following data: %s", string(buf[:n]))
+
+	message := []byte("+PONG\r\n")
+	n, err = conn.Write(message)
+	if err != nil {
+		fmt.Println("Error writing to connection: ", err.Error())
+		os.Exit(1)
+	}
+
+	log.Printf("Sent %d bytes", n)
 }
