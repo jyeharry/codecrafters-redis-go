@@ -15,6 +15,8 @@ func main() {
 	}
 	fmt.Printf("Listening on %v", l.Addr())
 
+	defer l.Close()
+
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -29,22 +31,24 @@ func main() {
 func handleClient(conn net.Conn) {
 	defer conn.Close()
 
-	buf := make([]byte, 1024)
-	n, err := conn.Read(buf)
-	if err != nil {
-		fmt.Println("Error reading from connection: ", err.Error())
-		os.Exit(1)
+	for {
+		buf := make([]byte, 1024)
+		n, err := conn.Read(buf)
+		if err != nil {
+			fmt.Println("Error reading from connection: ", err.Error())
+			os.Exit(1)
+		}
+
+		log.Printf("Received %d bytes", n)
+		log.Printf("Received the following data: %s", string(buf[:n]))
+
+		message := []byte("+PONG\r\n")
+		n, err = conn.Write(message)
+		if err != nil {
+			fmt.Println("Error writing to connection: ", err.Error())
+			os.Exit(1)
+		}
+
+		log.Printf("Sent %d bytes", n)
 	}
-
-	log.Printf("Received %d bytes", n)
-	log.Printf("Received the following data: %s", string(buf[:n]))
-
-	message := []byte("+PONG\r\n")
-	n, err = conn.Write(message)
-	if err != nil {
-		fmt.Println("Error writing to connection: ", err.Error())
-		os.Exit(1)
-	}
-
-	log.Printf("Sent %d bytes", n)
 }
