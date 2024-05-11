@@ -18,14 +18,17 @@ func main() {
 	defer l.Close()
 
 	for {
-		conn, err := l.Accept()
-		if err != nil {
-			fmt.Println("Error accepting connection: ", err.Error())
-			continue
-		}
-
-		handleClient(conn)
+		go handleConnectionConcurrently(l)
 	}
+}
+
+func handleConnectionConcurrently(l net.Listener) {
+	conn, err := l.Accept()
+	if err != nil {
+		fmt.Println("Error accepting connection: ", err.Error())
+	}
+
+	handleClient(conn)
 }
 
 func handleClient(conn net.Conn) {
