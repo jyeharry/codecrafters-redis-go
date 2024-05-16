@@ -27,7 +27,7 @@ type Reader struct {
 }
 
 func NewReader(r io.Reader) *Reader {
-	scanner := bufio.NewScanner(bufio.NewReaderSize(r, 1024))
+	scanner := bufio.NewScanner(bufio.NewReaderSize(r, 9192))
 	scanner.Split(redisSplitter)
 
 	return &Reader{
@@ -41,7 +41,6 @@ func (r *Reader) Read() (*Result, error) {
 
 func redisSplitter(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if len(data) < 3 {
-
 		if atEOF {
 			return 0, nil, fmt.Errorf("unexpected end of stream, a redis message needs at least 3 characters to be valid, actual content in base64: [%v]", base64.RawStdEncoding.EncodeToString(data))
 		}

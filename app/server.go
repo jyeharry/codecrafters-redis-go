@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"strings"
-	// "log"
 	"net"
 	"os"
 
@@ -16,6 +15,15 @@ type Client struct {
 	writer *resp.Writer
 }
 
+var DB = make(map[string]string)
+
+const (
+	GET = "GET"
+	SET = "SET"
+	PING = "PING"
+	ECHO = "ECHO"
+)
+
 func main() {
 	l, err := net.Listen("tcp", "0.0.0.0:6379")
 	if err != nil {
@@ -27,11 +35,11 @@ func main() {
 	defer l.Close()
 
 	for {
-		go handleConnectionConcurrently(l)
+		go handleConcurrentConnections(l)
 	}
 }
 
-func handleConnectionConcurrently(l net.Listener) {
+func handleConcurrentConnections(l net.Listener) {
 	conn, err := l.Accept()
 	if err != nil {
 		fmt.Println("Error accepting connection: ", err.Error())
@@ -58,18 +66,31 @@ func handleClient(conn net.Conn) {
 
 		content, err := result.Slice()
 		if err != nil {
-			fmt.Println("Error writing to connection: ", err.Error())
+			fmt.Println("Error reading from result: ", err.Error())
 			os.Exit(1)
 		}
 
-		fmt.Println("Content received:", content)
+		fmt.Printf("Content received: %s", content)
+
 		command := content[0].(string)
+		args := content[1:]
 
 		switch strings.ToUpper(command) {
-		case "ECHO":
-			err = client.writer.WriteBulkString([]byte(content[1].(string)))
-		default:
+		case ECHO:
+			echo := args[0].(string)
+			err = client.writer.WriteBulkString([]byte(echo))
+		case SET: 
+			key := args[0].(string)
+			DB[key] = args[1].(string)
+			err = client.writer.WriteSimpleString([]byte("OK"))
+		case GET: 
+			key := args[0].(string)
+			value := DB[key]
+			err = client.writer.WriteBulkString([]byte(value))
+		case PING:
 			err = client.writer.WriteBulkString([]byte("PONG"))
+		default:
+			fmt.Printf("Command not registered: %s", command)
 		}
 
 		if err != nil {

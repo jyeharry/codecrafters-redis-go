@@ -32,6 +32,14 @@ func (w *Writer) write(messageType byte, contents ...[]byte) error {
 	return nil
 }
 
+func (w *Writer) WriteSimpleString(value []byte) error {
+	return w.write(
+		SIMPLE_STRING,
+		value,
+		separator,
+	)
+}
+
 func (w *Writer) WriteBulkString(value []byte) error {
 	return w.write(
 		BULK_STRING,
