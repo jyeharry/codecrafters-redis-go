@@ -2,10 +2,19 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"strings"
+	// "log"
 	"net"
 	"os"
+
+	resp "github.com/codecrafters-io/redis-starter-go/app/resp"
 )
+
+type Client struct {
+	conn   net.Conn
+	reader *resp.Reader
+	writer *resp.Writer
+}
 
 func main() {
 	l, err := net.Listen("tcp", "0.0.0.0:6379")
@@ -13,7 +22,7 @@ func main() {
 		fmt.Println("Failed to bind to port 6379")
 		os.Exit(1)
 	}
-	fmt.Printf("Listening on %v", l.Addr())
+	fmt.Printf("Listening on %v\n", l.Addr())
 
 	defer l.Close()
 
@@ -32,26 +41,40 @@ func handleConnectionConcurrently(l net.Listener) {
 }
 
 func handleClient(conn net.Conn) {
-	defer conn.Close()
+	client := &Client{
+		conn: conn,
+		reader: resp.NewReader(conn),
+		writer: resp.NewWriter(conn),	
+	} 
+
+	defer client.conn.Close()
 
 	for {
-		buf := make([]byte, 1024)
-		n, err := conn.Read(buf)
+		result, err := client.reader.Read()
 		if err != nil {
 			fmt.Println("Error reading from connection: ", err.Error())
 			os.Exit(1)
 		}
 
-		log.Printf("Received %d bytes", n)
-		log.Printf("Received the following data: %s", string(buf[:n]))
-
-		message := []byte("+PONG\r\n")
-		n, err = conn.Write(message)
+		content, err := result.Slice()
 		if err != nil {
 			fmt.Println("Error writing to connection: ", err.Error())
 			os.Exit(1)
 		}
 
-		log.Printf("Sent %d bytes", n)
+		fmt.Println("Content received:", content)
+		command := content[0].(string)
+
+		switch strings.ToUpper(command) {
+		case "ECHO":
+			err = client.writer.WriteBulkString([]byte(content[1].(string)))
+		default:
+			err = client.writer.WriteBulkString([]byte("PONG"))
+		}
+
+		if err != nil {
+			fmt.Println("Error writing to connection: ", err.Error())
+			os.Exit(1)
+		}
 	}
 }
