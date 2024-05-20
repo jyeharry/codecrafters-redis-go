@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"strings"
 	"net"
 	"os"
+	"strconv"
+	"strings"
 
 	resp "github.com/codecrafters-io/redis-starter-go/app/resp"
 )
@@ -15,13 +16,14 @@ type Client struct {
 	writer *resp.Writer
 }
 
-var DB = make(map[string]string)
+var DB = NewDatabase()
 
 const (
-	GET = "GET"
-	SET = "SET"
+	GET  = "GET"
+	SET  = "SET"
 	PING = "PING"
 	ECHO = "ECHO"
+	PX = "PX" 
 )
 
 func main() {
@@ -50,10 +52,10 @@ func handleConcurrentConnections(l net.Listener) {
 
 func handleClient(conn net.Conn) {
 	client := &Client{
-		conn: conn,
+		conn:   conn,
 		reader: resp.NewReader(conn),
-		writer: resp.NewWriter(conn),	
-	} 
+		writer: resp.NewWriter(conn),
+	}
 
 	defer client.conn.Close()
 
@@ -70,7 +72,7 @@ func handleClient(conn net.Conn) {
 			os.Exit(1)
 		}
 
-		fmt.Printf("Content received: %s", content)
+		fmt.Printf("Content received: %s\n", content)
 
 		command := content[0].(string)
 		args := content[1:]
@@ -79,14 +81,27 @@ func handleClient(conn net.Conn) {
 		case ECHO:
 			echo := args[0].(string)
 			err = client.writer.WriteBulkString([]byte(echo))
-		case SET: 
+		case SET:
 			key := args[0].(string)
-			DB[key] = args[1].(string)
+			flags := make(map[string]string)
+			remainingArgs := args[2:]
+			for i := 0; i < len(remainingArgs); i += 2 {
+				flag := remainingArgs[i].(string)
+				flags[strings.ToUpper(flag)] = remainingArgs[i+1].(string) 
+			}
+			expiry, parseIntErr := strconv.ParseUint(flags[PX], 10, 64)
+			if parseIntErr != nil {
+				expiry = 0
+			}
+			DB.Set(key, args[1].(string), uint(expiry))
 			err = client.writer.WriteSimpleString([]byte("OK"))
-		case GET: 
+		case GET:
 			key := args[0].(string)
-			value := DB[key]
-			err = client.writer.WriteBulkString([]byte(value))
+			if value, ok := DB.Get(key); ok {
+				err = client.writer.WriteBulkString([]byte(value))
+			} else {
+				err = client.writer.WriteNil()
+			}
 		case PING:
 			err = client.writer.WriteBulkString([]byte("PONG"))
 		default:
