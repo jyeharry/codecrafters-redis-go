@@ -26,6 +26,8 @@ const (
 	PX = "PX" 
 )
 
+var sem = make(chan int, 100)
+
 func main() {
 	l, err := net.Listen("tcp", "0.0.0.0:6379")
 	if err != nil {
@@ -35,8 +37,9 @@ func main() {
 	fmt.Printf("Listening on %v\n", l.Addr())
 
 	defer l.Close()
-
+	
 	for {
+		sem <- 1
 		go handleConcurrentConnections(l)
 	}
 }
@@ -57,7 +60,10 @@ func handleClient(conn net.Conn) {
 		writer: resp.NewWriter(conn),
 	}
 
-	defer client.conn.Close()
+	defer func() {
+		client.conn.Close()
+		<- sem
+	}()
 
 	for {
 		result, err := client.reader.Read()
